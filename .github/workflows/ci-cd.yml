@@ -1,0 +1,63 @@
+name: CI-CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Train model
+      run: python scripts/train.py
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: model-artifacts
+        path: |
+          model/model.pkl
+          metrics.json
+
+  deploy:
+    needs: train
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: model-artifacts
+
+    - name: Compare metrics
+      run: |
+        CUR_R2=$(jq .r2 metrics.json)
+        CUR_MSE=$(jq .mse metrics.json)
+        BEST_R2=${{ vars.BEST_R2 }}
+        BEST_MSE=${{ vars.BEST_MSE }}
+
+        if (( $(echo "$CUR_R2 <= $BEST_R2" | bc -l) )); then
+          echo "2022BCD0039 ---- Metric did not improve"
+          exit 0
+        fi
+
+        echo "New best model found"
+
+    - name: Login to Docker Hub
+      run: echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+
+    - name: Build and push image
+      run: |
+        docker build -t sibykannabcd39/wine_predict_2022bcd0039:latest .
+        docker push sibykannabcd39/wine_predict_2022bcd0039:latest
