@@ -1,9 +1,12 @@
 import pandas as pd
 import json
 import joblib
+import os
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
+
+os.makedirs("model", exist_ok=True)
 
 # Load dataset
 url = "https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv"
