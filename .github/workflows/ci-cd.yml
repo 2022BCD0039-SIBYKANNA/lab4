@@ -2,7 +2,7 @@ name: CI-CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   train:
@@ -17,13 +17,16 @@ jobs:
 
     - run: pip install -r requirements.txt
 
-    - run: python scripts/train.py
+    - name: Train model
+      run: python scripts/train.py
 
-    - uses: actions/upload-artifact@v4
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
       with:
         name: model-artifacts
-        path: app/artifacts/**
-
+        path: |
+          model/model.pkl
+          app/artifacts/metrics.json
 
   deploy:
     needs: train
@@ -32,18 +35,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - uses: actions/download-artifact@v4
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
       with:
         name: model-artifacts
-        path: app/artifacts
 
-    - run: |
+    - name: Install tools
+      run: |
         sudo apt-get update
         sudo apt-get install -y jq bc
 
     - name: Compare metrics
       run: |
-        CUR_R2=$(jq .r2 app/artifacts/metrics.json)
+        CUR_R2=$(jq .accuracy app/artifacts/metrics.json)
         BEST_R2=${{ vars.BEST_R2 }}
 
         echo "Current R2: $CUR_R2"
