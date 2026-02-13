@@ -3,8 +3,8 @@ pipeline {
 
     environment {
         DOCKERHUB_CREDS = credentials('dockerhub-creds')
-        BEST_ACCURACY = credentials('best-accuracy')
-        IMAGE_NAME = "sibykannabcd39/wine_predict_2022bcd0039"
+        BEST_ACCURACY   = credentials('best-accuracy')
+        IMAGE_NAME      = "sibykannabcd39/wine_predict_2022bcd0039"
     }
 
     stages {
@@ -28,6 +28,7 @@ pipeline {
         stage('Train Model') {
             steps {
                 sh '''
+                mkdir -p app/artifacts
                 venv/bin/python scripts/train.py
                 '''
             }
@@ -36,9 +37,19 @@ pipeline {
         stage('Read Accuracy') {
             steps {
                 script {
+                    if (!fileExists('app/artifacts/metrics.json')) {
+                        error("metrics.json not found!")
+                    }
+
                     def metrics = readJSON file: 'app/artifacts/metrics.json'
-                    env.CURRENT_R2 = metrics.r2.toString()
-                    echo "Current R2: ${env.CURRENT_R2}"
+
+                    if (!metrics.containsKey("accuracy")) {
+                        error("Accuracy field not found in metrics.json!")
+                    }
+
+                    env.CURRENT_ACCURACY = metrics["accuracy"].toString()
+
+                    echo "Current Accuracy: ${env.CURRENT_ACCURACY}"
                 }
             }
         }
@@ -46,11 +57,19 @@ pipeline {
         stage('Compare Accuracy') {
             steps {
                 script {
+
+                    if (env.CURRENT_ACCURACY == null) {
+                        error("Current accuracy is null!")
+                    }
+
                     def best = BEST_ACCURACY.toDouble()
-                    def current = env.CURRENT_R2.toDouble()
+                    def current = env.CURRENT_ACCURACY.toDouble()
+
+                    echo "Best Accuracy: ${best}"
+                    echo "Current Accuracy: ${current}"
 
                     if (current > best) {
-                        echo "Model improved!"
+                        echo "Model improved! Proceeding with Docker build."
                         env.MODEL_IMPROVED = "true"
                     } else {
                         echo "Model did not improve."
