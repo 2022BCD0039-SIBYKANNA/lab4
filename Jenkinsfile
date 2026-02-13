@@ -1,0 +1,97 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = "sibykannabcd39/wine_predict_2022bcd0039"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Setup Python Virtual Environment') {
+            steps {
+                sh '''
+                python3 -m venv venv
+                source venv/bin/activate
+                pip install -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Train Model') {
+            steps {
+                sh '''
+                source venv/bin/activate
+                python scripts/train.py
+                '''
+            }
+        }
+
+        stage('Read Accuracy') {
+            steps {
+                script {
+                    def metrics = readJSON file: 'app/artifacts/metrics.json'
+                    env.CURRENT_ACCURACY = metrics.accuracy.toString()
+                    echo "Current Accuracy: ${env.CURRENT_ACCURACY}"
+                }
+            }
+        }
+
+        stage('Compare Accuracy') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'best-accuracy', variable: 'BEST')]) {
+                        if (env.CURRENT_ACCURACY.toFloat() > BEST.toFloat()) {
+                            env.IMPROVED = "true"
+                            echo "Model improved!"
+                        } else {
+                            env.IMPROVED = "false"
+                            echo "Model did not improve."
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            when {
+                expression { env.IMPROVED == "true" }
+            }
+            steps {
+                sh "docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} ."
+                sh "docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest"
+            }
+        }
+
+        stage('Push Docker Image') {
+            when {
+                expression { env.IMPROVED == "true" }
+            }
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'USER',
+                    passwordVariable: 'PASS'
+                )]) {
+
+                    sh """
+                    echo \$PASS | docker login -u \$USER --password-stdin
+                    docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                    docker push ${DOCKER_IMAGE}:latest
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'app/artifacts/**', fingerprint: true
+        }
+    }
+}
