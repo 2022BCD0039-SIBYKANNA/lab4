@@ -6,7 +6,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 
+# Create required folders
 os.makedirs("model", exist_ok=True)
+os.makedirs("app/artifacts", exist_ok=True)
 
 # Load dataset
 url = "https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv"
@@ -23,7 +25,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 model = RandomForestRegressor(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
-# Evaluate
+# Evaluate model
 y_pred = model.predict(X_test)
 mse = mean_squared_error(y_test, y_pred)
 r2 = r2_score(y_test, y_pred)
@@ -31,13 +33,13 @@ r2 = r2_score(y_test, y_pred)
 # Save model
 joblib.dump(model, "model/model.pkl")
 
-# Save metrics
+# Save metrics INSIDE app/artifacts (VERY IMPORTANT)
 metrics = {
     "mse": mse,
-    "r2": r2
+    "accuracy": r2   # Jenkins expects accuracy key
 }
 
-with open("metrics.json", "w") as f:
+with open("app/artifacts/metrics.json", "w") as f:
     json.dump(metrics, f)
 
 print("Training complete")
