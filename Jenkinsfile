@@ -2,7 +2,10 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "sibykannabcd39/wine_predict_2022bcd0039"
+        DOCKERHUB_CREDS = credentials('dockerhub-creds')
+        GIT_CREDS = credentials('git-creds')
+        BEST_ACCURACY = credentials('best-accuracy')
+        IMAGE_NAME = "sibykannabcd39/wine_predict_2022bcd0039"
     }
 
     stages {
@@ -17,8 +20,8 @@ pipeline {
             steps {
                 sh '''
                 python3 -m venv venv
-                source venv/bin/activate
-                pip install -r requirements.txt
+                venv/bin/pip install --upgrade pip
+                venv/bin/pip install -r requirements.txt
                 '''
             }
         }
@@ -26,8 +29,8 @@ pipeline {
         stage('Train Model') {
             steps {
                 sh '''
-                source venv/bin/activate
-                python scripts/train.py
+                mkdir -p app/artifacts
+                venv/bin/python scripts/train.py
                 '''
             }
         }
@@ -45,14 +48,15 @@ pipeline {
         stage('Compare Accuracy') {
             steps {
                 script {
-                    withCredentials([string(credentialsId: 'best-accuracy', variable: 'BEST')]) {
-                        if (env.CURRENT_ACCURACY.toFloat() > BEST.toFloat()) {
-                            env.IMPROVED = "true"
-                            echo "Model improved!"
-                        } else {
-                            env.IMPROVED = "false"
-                            echo "Model did not improve."
-                        }
+                    def best = BEST_ACCURACY.toDouble()
+                    def current = env.CURRENT_ACCURACY.toDouble()
+
+                    if (current > best) {
+                        echo "Model improved! Proceeding with Docker build."
+                        env.MODEL_IMPROVED = "true"
+                    } else {
+                        echo "Model did not improve."
+                        env.MODEL_IMPROVED = "false"
                     }
                 }
             }
@@ -60,38 +64,33 @@ pipeline {
 
         stage('Build Docker Image') {
             when {
-                expression { env.IMPROVED == "true" }
+                expression { env.MODEL_IMPROVED == "true" }
             }
             steps {
-                sh "docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} ."
-                sh "docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest"
+                sh """
+                docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
+                """
             }
         }
 
         stage('Push Docker Image') {
             when {
-                expression { env.IMPROVED == "true" }
+                expression { env.MODEL_IMPROVED == "true" }
             }
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASS'
-                )]) {
-
-                    sh """
-                    echo \$PASS | docker login -u \$USER --password-stdin
-                    docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                    docker push ${DOCKER_IMAGE}:latest
-                    """
-                }
+                sh """
+                echo ${DOCKERHUB_CREDS_PSW} | docker login -u ${DOCKERHUB_CREDS_USR} --password-stdin
+                docker push ${IMAGE_NAME}:${BUILD_NUMBER}
+                docker push ${IMAGE_NAME}:latest
+                """
             }
         }
     }
 
     post {
         always {
-            archiveArtifacts artifacts: 'app/artifacts/**', fingerprint: true
+            archiveArtifacts artifacts: 'app/artifacts/**', allowEmptyArchive: true
         }
     }
 }
