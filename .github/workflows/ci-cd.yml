@@ -55,7 +55,7 @@ jobs:
 
     - name: Compare metrics
       run: |
-        CUR_R2=$(jq .r2 metrics.json)
+        CUR_R2=$(jq .accuracy app/artifacts/metrics.json)
         CUR_MSE=$(jq .mse metrics.json)
 
         BEST_R2=${{ vars.BEST_R2 }}
