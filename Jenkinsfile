@@ -3,7 +3,6 @@ pipeline {
 
     environment {
         DOCKERHUB_CREDS = credentials('dockerhub-creds')
-        GIT_CREDS = credentials('git-creds')
         BEST_ACCURACY = credentials('best-accuracy')
         IMAGE_NAME = "sibykannabcd39/wine_predict_2022bcd0039"
     }
@@ -29,7 +28,6 @@ pipeline {
         stage('Train Model') {
             steps {
                 sh '''
-                mkdir -p app/artifacts
                 venv/bin/python scripts/train.py
                 '''
             }
@@ -39,8 +37,8 @@ pipeline {
             steps {
                 script {
                     def metrics = readJSON file: 'app/artifacts/metrics.json'
-                    env.CURRENT_ACCURACY = metrics.accuracy.toString()
-                    echo "Current Accuracy: ${env.CURRENT_ACCURACY}"
+                    env.CURRENT_R2 = metrics.r2.toString()
+                    echo "Current R2: ${env.CURRENT_R2}"
                 }
             }
         }
@@ -49,10 +47,10 @@ pipeline {
             steps {
                 script {
                     def best = BEST_ACCURACY.toDouble()
-                    def current = env.CURRENT_ACCURACY.toDouble()
+                    def current = env.CURRENT_R2.toDouble()
 
                     if (current > best) {
-                        echo "Model improved! Proceeding with Docker build."
+                        echo "Model improved!"
                         env.MODEL_IMPROVED = "true"
                     } else {
                         echo "Model did not improve."
