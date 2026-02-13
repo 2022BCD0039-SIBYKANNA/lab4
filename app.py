@@ -4,7 +4,9 @@ import joblib
 import numpy as np
 
 app = FastAPI()
-model = joblib.load("model/model.pkl")
+
+# Load correct model path
+model = joblib.load("app/artifacts/model.pkl")
 
 class WineInput(BaseModel):
     fixed_acidity: float
@@ -38,7 +40,7 @@ def predict(data: WineInput):
     prediction = model.predict(features)[0]
 
     return {
-        "name": "SIBYKANNA",
+        "name": "G SIBY KANNA",
         "roll_no": "2022BCD0039",
         "wine_quality": int(round(prediction))
     }
