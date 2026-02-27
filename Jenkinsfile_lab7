@@ -42,6 +42,11 @@ pipeline {
         stage('Valid Inference Test') {
             steps {
                 sh '''
+                # Get container IP
+                CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_NAME)
+
+                echo "Container IP: $CONTAINER_IP"
+
                 RESPONSE=$(echo '{\"fixed_acidity\":7.4,
                                    \"volatile_acidity\":0.70,
                                    \"citric_acid\":0.00,
@@ -56,7 +61,7 @@ pipeline {
                 | docker run --rm -i \
                     --network $NETWORK_NAME \
                     curlimages/curl \
-                    -s -X POST http://$CONTAINER_NAME:8000/predict \
+                    -s -X POST http://$CONTAINER_IP:8000/predict \
                     -H "Content-Type: application/json" \
                     --data @-)
 
@@ -71,19 +76,20 @@ pipeline {
         stage('Invalid Inference Test') {
             steps {
                 sh '''
+                CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_NAME)
+
                 STATUS=$(echo '{\"fixed_acidity\":7.4}' \
                 | docker run --rm -i \
                     --network $NETWORK_NAME \
                     curlimages/curl \
                     -s -o /dev/null -w "%{http_code}" \
-                    -X POST http://$CONTAINER_NAME:8000/predict \
+                    -X POST http://$CONTAINER_IP:8000/predict \
                     -H "Content-Type: application/json" \
                     --data @-)
 
                 echo "Invalid Test HTTP Status: $STATUS"
 
                 if [ "$STATUS" = "200" ]; then
-                    echo "Invalid test failed!"
                     exit 1
                 fi
                 '''
