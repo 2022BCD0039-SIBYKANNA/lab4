@@ -6,9 +6,9 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy training script and app
-COPY train.py .
+# Copy files (correct paths)
 COPY app.py .
+COPY scripts/train.py ./train.py
 
 # Train model during build
 RUN python train.py
