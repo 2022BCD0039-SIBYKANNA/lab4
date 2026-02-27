@@ -2,15 +2,17 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "sibykannabcd39/wine_predict_2022bcd0039:latest"
+        IMAGE_NAME = "wine_predict_lab7"
         CONTAINER_NAME = "wine_test_container"
     }
 
     stages {
 
-        stage('Pull Image') {
+        stage('Build Image') {
             steps {
-                sh 'docker pull $IMAGE_NAME'
+                sh '''
+                docker build -t $IMAGE_NAME .
+                '''
             }
         }
 
@@ -47,7 +49,6 @@ pipeline {
                        "alcohol":9.4}')
 
                 echo "$RESPONSE"
-
                 echo "$RESPONSE" | grep -q wine_quality
                 '''
             }
