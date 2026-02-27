@@ -1,0 +1,111 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "sibykannabcd39/wine_predict_2022bcd0039:latest"
+        CONTAINER_NAME = "wine_test_container"
+        API_URL = "http://localhost:8000/predict"
+    }
+
+    stages {
+
+        stage('Pull Image') {
+            steps {
+                sh '''
+                echo "Pulling Docker image..."
+                docker pull $IMAGE_NAME
+                '''
+            }
+        }
+
+        stage('Run Container') {
+            steps {
+                sh '''
+                echo "Starting container..."
+                docker run -d -p 8000:8000 --name $CONTAINER_NAME $IMAGE_NAME
+                '''
+            }
+        }
+
+        stage('Wait for API Readiness') {
+            steps {
+                sh '''
+                echo "Waiting for API..."
+                sleep 10
+                '''
+            }
+        }
+
+        stage('Valid Inference Test') {
+            steps {
+                script {
+                    def response = sh(
+                        script: """
+                        curl -s -X POST $API_URL \
+                        -H "Content-Type: application/json" \
+                        -d '{
+                          "fixed_acidity":7.4,
+                          "volatile_acidity":0.70,
+                          "citric_acid":0.00,
+                          "residual_sugar":1.9,
+                          "chlorides":0.076,
+                          "free_sulfur_dioxide":11.0,
+                          "total_sulfur_dioxide":34.0,
+                          "density":0.9978,
+                          "pH":3.51,
+                          "sulphates":0.56,
+                          "alcohol":9.4
+                        }'
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Valid Response: ${response}"
+
+                    if (!response.contains("wine_quality")) {
+                        error("Prediction field missing!")
+                    }
+                }
+            }
+        }
+
+        stage('Invalid Inference Test') {
+            steps {
+                script {
+                    def response = sh(
+                        script: """
+                        curl -s -o /dev/null -w "%{http_code}" \
+                        -X POST $API_URL \
+                        -H "Content-Type: application/json" \
+                        -d '{"fixed_acidity":7.4}'
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Invalid Response Code: ${response}"
+
+                    if (response == "200") {
+                        error("Invalid input should not return 200!")
+                    }
+                }
+            }
+        }
+
+        stage('Stop Container') {
+            steps {
+                sh '''
+                echo "Stopping container..."
+                docker stop $CONTAINER_NAME || true
+                docker rm $CONTAINER_NAME || true
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker stop $CONTAINER_NAME || true'
+            sh 'docker rm $CONTAINER_NAME || true'
+        }
+    }
+}
