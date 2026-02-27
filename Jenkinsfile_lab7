@@ -3,17 +3,10 @@ pipeline {
 
     environment {
         IMAGE_NAME = "sibykannabcd39/wine_predict_2022bcd0039:latest"
-        NETWORK_NAME = "jenkins_network"
         CONTAINER_NAME = "wine_test_container"
     }
 
     stages {
-
-        stage('Create Network') {
-            steps {
-                sh 'docker network create $NETWORK_NAME || true'
-            }
-        }
 
         stage('Pull Image') {
             steps {
@@ -26,7 +19,7 @@ pipeline {
                 sh '''
                 docker rm -f $CONTAINER_NAME || true
                 docker run -d \
-                    --network $NETWORK_NAME \
+                    -p 8000:8000 \
                     --name $CONTAINER_NAME \
                     $IMAGE_NAME
                 '''
@@ -42,28 +35,19 @@ pipeline {
         stage('Valid Inference Test') {
             steps {
                 sh '''
-                # Get container IP
-                CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_NAME)
-
-                echo "Container IP: $CONTAINER_IP"
-
-                RESPONSE=$(echo '{\"fixed_acidity\":7.4,
-                                   \"volatile_acidity\":0.70,
-                                   \"citric_acid\":0.00,
-                                   \"residual_sugar\":1.9,
-                                   \"chlorides\":0.076,
-                                   \"free_sulfur_dioxide\":11.0,
-                                   \"total_sulfur_dioxide\":34.0,
-                                   \"density\":0.9978,
-                                   \"pH\":3.51,
-                                   \"sulphates\":0.56,
-                                   \"alcohol\":9.4}' \
-                | docker run --rm -i \
-                    --network $NETWORK_NAME \
-                    curlimages/curl \
-                    -s -X POST http://$CONTAINER_IP:8000/predict \
-                    -H "Content-Type: application/json" \
-                    --data @-)
+                RESPONSE=$(curl -s -X POST http://localhost:8000/predict \
+                  -H "Content-Type: application/json" \
+                  -d '{"fixed_acidity":7.4,
+                       "volatile_acidity":0.70,
+                       "citric_acid":0.00,
+                       "residual_sugar":1.9,
+                       "chlorides":0.076,
+                       "free_sulfur_dioxide":11.0,
+                       "total_sulfur_dioxide":34.0,
+                       "density":0.9978,
+                       "pH":3.51,
+                       "sulphates":0.56,
+                       "alcohol":9.4}')
 
                 echo "API Response:"
                 echo "$RESPONSE"
@@ -76,16 +60,10 @@ pipeline {
         stage('Invalid Inference Test') {
             steps {
                 sh '''
-                CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $CONTAINER_NAME)
-
-                STATUS=$(echo '{\"fixed_acidity\":7.4}' \
-                | docker run --rm -i \
-                    --network $NETWORK_NAME \
-                    curlimages/curl \
-                    -s -o /dev/null -w "%{http_code}" \
-                    -X POST http://$CONTAINER_IP:8000/predict \
-                    -H "Content-Type: application/json" \
-                    --data @-)
+                STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                  -X POST http://localhost:8000/predict \
+                  -H "Content-Type: application/json" \
+                  -d '{"fixed_acidity":7.4}')
 
                 echo "Invalid Test HTTP Status: $STATUS"
 
