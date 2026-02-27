@@ -18,10 +18,7 @@ pipeline {
             steps {
                 sh '''
                 docker rm -f $CONTAINER_NAME || true
-                docker run -d \
-                    -p 8000:8000 \
-                    --name $CONTAINER_NAME \
-                    $IMAGE_NAME
+                docker run -d -p 8000:8000 --name $CONTAINER_NAME $IMAGE_NAME
                 '''
             }
         }
@@ -49,7 +46,6 @@ pipeline {
                        "sulphates":0.56,
                        "alcohol":9.4}')
 
-                echo "API Response:"
                 echo "$RESPONSE"
 
                 echo "$RESPONSE" | grep -q wine_quality
@@ -64,8 +60,6 @@ pipeline {
                   -X POST http://localhost:8000/predict \
                   -H "Content-Type: application/json" \
                   -d '{"fixed_acidity":7.4}')
-
-                echo "Invalid Test HTTP Status: $STATUS"
 
                 if [ "$STATUS" = "200" ]; then
                     exit 1
